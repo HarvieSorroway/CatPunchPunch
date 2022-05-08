@@ -5,28 +5,36 @@ using System.Text;
 using BepInEx;
 using RWCustom;
 using UnityEngine;
+using OptionalUI;
 
 namespace CatPunchPunch
 {
-    [BepInPlugin("Harvie.CatPunchPunch", "CatPunchPunch", "1.0.0")]
+    [BepInPlugin("Harvie.CatPunchPunch", "CatPunchPunch", "1.1.1")]
     public class CatPunchPunch : BaseUnityPlugin
     {
         public static PunchModule[] PunchModules = new PunchModule[1];
-
         public static CatPunchPunch instance;
 
-		public static Creature aim;
+        void OnEnable()
+        {
+            instance = this;
+        }
+        public OptionInterface LoadOI()
+        {
+            return new PunchConfig(instance);
+        }
+
 
         void Start()
         {
-            instance = this;
-
             On.Player.ctor += Player_ctor;
             On.Player.Update += Player_Update;
 
+            //爆炸拳
             On.Explosion.Update += Explosion_Update;
             On.Smoke.BombSmoke.Update += BombSmoke_Update;
 
+            //蜜蜂拳
             On.SporePlant.Bee.Update += Bee_Update;
             On.SporePlant.Bee.LookForRandomCreatureToHunt += Bee_LookForRandomCreatureToHunt;
             On.SporePlant.Bee.Attach += Bee_Attach;

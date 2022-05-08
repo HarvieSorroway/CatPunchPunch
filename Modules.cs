@@ -30,6 +30,10 @@ namespace CatPunchPunch
                 Cool--;
                 return;
             }
+            if(player == null)
+            {
+                return;
+            }
             if (!player.input[0].thrw || player.dontGrabStuff > 0)
             {
                 return;
@@ -205,7 +209,7 @@ namespace CatPunchPunch
                     specificPunchReturnValue = NormalPunch(punchDataPackage);
                     break;
                 case PunchMode.FastPunch:
-                    specificPunchReturnValue = NormalPunch(punchDataPackage, 4);
+                    specificPunchReturnValue = NormalPunch(punchDataPackage, true);
                     break;
                 case PunchMode.BombPunch:
                     specificPunchReturnValue = BombPunch(punchDataPackage);
@@ -253,8 +257,19 @@ namespace CatPunchPunch
             Cool = specificPunchReturnValue.breakFrame;
         }
 
-        public SpecificPunchReturnValue NormalPunch(PunchDataPackage punchDataPackage,int breakFrame = 10)
+        public SpecificPunchReturnValue NormalPunch(PunchDataPackage punchDataPackage,bool isFastPunch = false)
         {
+            float damage = 0.1f;
+
+            if (isFastPunch)
+            {
+                damage = PunchConfigInfo.GetDamage("FastPunch");
+            }
+            else
+            {
+                damage = PunchConfigInfo.GetDamage("NormalPunch");
+            }
+
             if(punchDataPackage.idealBodyChunkAndAppendages.Count > 0)
             {
                 foreach(var bodyChunkAndAppendage in punchDataPackage.idealBodyChunkAndAppendages)
@@ -263,7 +278,7 @@ namespace CatPunchPunch
                     {
                         if (bodyChunkAndAppendage.owner is Creature && bodyChunkAndAppendage.bodyChunk != null)
                         {
-                            (bodyChunkAndAppendage.owner as Creature).Violence(player.mainBodyChunk, new Vector2?(punchDataPackage.punchVec), bodyChunkAndAppendage.bodyChunk, null, Creature.DamageType.Blunt, 0.4f * Mathf.Lerp(0.4f,0.8f,Random.value), 19f);
+                            (bodyChunkAndAppendage.owner as Creature).Violence(player.mainBodyChunk, new Vector2?(punchDataPackage.punchVec), bodyChunkAndAppendage.bodyChunk, null, Creature.DamageType.Blunt, damage, 19f);
                         }
                         else
                         {
@@ -278,19 +293,27 @@ namespace CatPunchPunch
                             (bodyChunkAndAppendage.owner as PhysicalObject.IHaveAppendages).ApplyForceOnAppendage(bodyChunkAndAppendage.appendagePos, punchDataPackage.punchVec * 0.007f);
                         }
 
-                        if (mode == PunchMode.NormalPunch)
+                        if(player != null)
                         {
-                            Vector2 vector3 = (bodyChunkAndAppendage.bodyChunk != null) ? bodyChunkAndAppendage.bodyChunk.pos : bodyChunkAndAppendage.appendagePos.appendage.OnAppendagePosition(bodyChunkAndAppendage.appendagePos);
-                            player.room.PlaySound(SoundID.Rock_Hit_Creature, vector3, punchDataPackage.punchVec.sqrMagnitude * 0.065f, punchDataPackage.punchVec.sqrMagnitude / 20f);
 
-                            player.room.AddObject(new ExplosionSpikes(player.room, vector3 + Custom.DirVec(vector3, punchDataPackage.fistPos) * ((bodyChunkAndAppendage.bodyChunk != null) ? bodyChunkAndAppendage.bodyChunk.rad : 5f), 5, 2f, 4f, 4.5f, 30f, new Color(1f, 1f, 1f, 0.5f)));
                         }
+                        Vector2 vector3 = (bodyChunkAndAppendage.bodyChunk != null) ? bodyChunkAndAppendage.bodyChunk.pos : bodyChunkAndAppendage.appendagePos.appendage.OnAppendagePosition(bodyChunkAndAppendage.appendagePos);
+                        player.room.PlaySound(SoundID.Rock_Hit_Creature, vector3, punchDataPackage.punchVec.sqrMagnitude * 0.065f, punchDataPackage.punchVec.sqrMagnitude / 20f);
+
+                        player.room.AddObject(new ExplosionSpikes(player.room, vector3 + Custom.DirVec(vector3, punchDataPackage.fistPos) * ((bodyChunkAndAppendage.bodyChunk != null) ? bodyChunkAndAppendage.bodyChunk.rad : 5f), 5, 2f, 4f, 4.5f, 30f, new Color(1f, 1f, 1f, 0.5f)));
                     }
                 }
             }
 
             SpecificPunchReturnValue value = new SpecificPunchReturnValue();
-            value.breakFrame = breakFrame;
+            if (isFastPunch)
+            {
+                value.breakFrame = PunchConfigInfo.GetBreak("FastPunch");
+            }
+            else
+            {
+                value.breakFrame = PunchConfigInfo.GetBreak("NormalPunch");
+            }
             value.velMulti = 1f;
 
             return value;
@@ -301,8 +324,10 @@ namespace CatPunchPunch
             Vector2 newPos = punchDataPackage.fistPos + punchDataPackage.punchVec;
             Color explodeColor = new Color(1f, 0.4f, 0.3f);
 
+            float damage = PunchConfigInfo.GetDamage("BombPunch");
+
             //与ScavengerBomb内的代码相同
-            Explosion explosion = new Explosion(player.room, player, newPos, 7, 100, 3, 2, 30, 0.25f, player, 1f, 10, 1f);
+            Explosion explosion = new Explosion(player.room, player, newPos, 7, 100, damage / 1.5f, damage, damage * 10f, 0.25f, player, 1f, 10, 1f);
 
             explosionPunchModules.Add(new ExplosionPunchModule(explosion, this));
             //Debug.Log("[CatPunch]Total explosionPunchModule:" + explosionPunchModules.Count.ToString());
@@ -359,7 +384,7 @@ namespace CatPunchPunch
 
             SpecificPunchReturnValue value = new SpecificPunchReturnValue();
             value.velMulti = 3f;
-            value.breakFrame = 40;
+            value.breakFrame = PunchConfigInfo.GetBreak("BombPunch");
 
             //玩家加速
             if (player.canJump > 0 && player.room.gravity != 0) { }
@@ -402,15 +427,24 @@ namespace CatPunchPunch
                             {
                                 if((bodyChunkAndAppendage.owner as Creature).abstractCreature.state.socialMemory.GetOrInitiateRelationship(player.abstractCreature.ID).like >= 1)
                                 {
-                                    ((bodyChunkAndAppendage.owner as Creature).State as HealthState).health = Mathf.Clamp(((bodyChunkAndAppendage.owner as Creature).State as HealthState).health + 0.1f, 0, 1f);
-                                    player.room.AddObject(new VE_FriendlyPunch(bodyChunkAndAppendage.owner as Creature, Color.green, 0.6f));
+                                    if ((bodyChunkAndAppendage.owner as Creature).dead && PunchConfigInfo.punchDamageRanges["FriendlyPunch"].y > 0)
+                                    {
+                                        (bodyChunkAndAppendage.owner as Creature).dead = false;
+                                        player.room.AddObject(new VE_FriendlyPunch(bodyChunkAndAppendage.owner as Creature, Color.white, 2f));
+                                    }
+                                    else
+                                    {
+                                        player.room.AddObject(new VE_FriendlyPunch(bodyChunkAndAppendage.owner as Creature, Color.green, 0.6f));
+                                    }
+                                    ((bodyChunkAndAppendage.owner as Creature).State as HealthState).health = Mathf.Clamp(((bodyChunkAndAppendage.owner as Creature).State as HealthState).health + PunchConfigInfo.punchDamageRanges["FriendlyPunch"].y, 0, 1f);
+                                    
                                 }
                                 else
                                 {
                                     player.room.AddObject(new VE_FriendlyPunch(bodyChunkAndAppendage.owner as Creature, Color.yellow, 1f));
-                                    (bodyChunkAndAppendage.owner as Creature).abstractCreature.state.socialMemory.GetOrInitiateRelationship(player.abstractCreature.ID).InfluenceLike(0.5f);
-                                    (bodyChunkAndAppendage.owner as Creature).abstractCreature.state.socialMemory.GetOrInitiateRelationship(player.abstractCreature.ID).InfluenceTempLike(0.5f);
-                                    (bodyChunkAndAppendage.owner as Creature).abstractCreature.state.socialMemory.GetOrInitiateRelationship(player.abstractCreature.ID).InfluenceKnow(0.1f);
+                                    (bodyChunkAndAppendage.owner as Creature).abstractCreature.state.socialMemory.GetOrInitiateRelationship(player.abstractCreature.ID).InfluenceLike(PunchConfigInfo.punchDamageRanges["FriendlyPunch"].x);
+                                    (bodyChunkAndAppendage.owner as Creature).abstractCreature.state.socialMemory.GetOrInitiateRelationship(player.abstractCreature.ID).InfluenceTempLike(PunchConfigInfo.punchDamageRanges["FriendlyPunch"].x);
+                                    (bodyChunkAndAppendage.owner as Creature).abstractCreature.state.socialMemory.GetOrInitiateRelationship(player.abstractCreature.ID).InfluenceKnow(PunchConfigInfo.punchDamageRanges["FriendlyPunch"].x / 5f);
                                 }
                                 if (highLevel)
                                 {
@@ -472,7 +506,7 @@ namespace CatPunchPunch
             }
 
             SpecificPunchReturnValue specificPunchReturnValue = new SpecificPunchReturnValue();
-            specificPunchReturnValue.breakFrame = 30;
+            specificPunchReturnValue.breakFrame = PunchConfigInfo.GetBreak("FriendlyPunch");
             specificPunchReturnValue.velMulti = 0.5f;
 
             return specificPunchReturnValue;
@@ -480,7 +514,7 @@ namespace CatPunchPunch
 
         public SpecificPunchReturnValue BeePunch(PunchDataPackage punchDataPackage)
         {
-            int count = Random.Range(4, 9);
+            int count = PunchConfigInfo.GetInt("BeePunch");
 
             for(int i = 0;i < count; i++)
             {
@@ -494,7 +528,7 @@ namespace CatPunchPunch
             }
 
             SpecificPunchReturnValue specificPunchReturnValue = new SpecificPunchReturnValue();
-            specificPunchReturnValue.breakFrame = 30;
+            specificPunchReturnValue.breakFrame = PunchConfigInfo.GetBreak("BeePunch");
             specificPunchReturnValue.velMulti = 1.2f;
 
             return specificPunchReturnValue;

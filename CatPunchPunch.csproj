@@ -41,6 +41,9 @@
     <Reference Include="BepInEx">
       <HintPath>..\..\..\Desktop\references\BepInEx.dll</HintPath>
     </Reference>
+    <Reference Include="ConfigMachine">
+      <HintPath>..\..\..\Desktop\references\ConfigMachine.dll</HintPath>
+    </Reference>
     <Reference Include="HOOKS-Assembly-CSharp">
       <HintPath>..\..\..\Desktop\references\HOOKS-Assembly-CSharp.dll</HintPath>
     </Reference>
@@ -53,6 +56,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CatPunchPunch.cs" />
+    <Compile Include="OpExpands.cs" />
     <Compile Include="PunchConfig.cs" />
     <Compile Include="VisualEffectModules.cs" />
     <Compile Include="Modules.cs" />
