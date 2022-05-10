@@ -17,6 +17,7 @@ namespace CatPunchPunch
         public List<BombSmokeModule> bombSmokeModules = new List<BombSmokeModule>();
         public List<BeeModule> beeModules = new List<BeeModule>();
         public List<BeeModule.AttachedBeeModule> attachedBeeModules = new List<BeeModule.AttachedBeeModule>();
+        public List<DeerAIModule> deerAIModules = new List<DeerAIModule>();
 
         public PunchModule(Player player)
         {
@@ -555,6 +556,23 @@ namespace CatPunchPunch
         public SpecificPunchReturnValue PuffPunch(PunchDataPackage punchDataPackage)
         {
             InsectCoordinator smallInsects = null;
+            int total = PunchConfigInfo.GetInt("PuffPunch");
+            float length = total / 20f;
+
+            //Get Deer AI
+            for (int i = 0; i < player.room.updateList.Count; i++)
+            {
+                if (player.room.updateList[i] is Deer)
+                {
+                    Deer deer = (player.room.updateList[i] as Deer);
+
+                    DeerAIModule.GetDeerAIModule(this, deer.AI, total * 2);
+                }
+            }
+
+            Color color = Color.Lerp(new Color(0.9f, 1f, 0.8f), player.room.game.cameras[0].paletteTexture.GetPixel(11, 4), 0.5f);
+            color = Color.Lerp(color, new Color(0.02f, 0.1f, 0.08f), 0.85f);
+
             for (int i = 0; i < player.room.updateList.Count; i++)
             {
                 if (player.room.updateList[i] is InsectCoordinator)
@@ -564,12 +582,10 @@ namespace CatPunchPunch
                 }
             }
 
-            int total = PunchConfigInfo.GetInt("PuffPunch");
-            float length = total / 20f;
 
             for (int j = 0; j < total; j++)
             {
-                player.room.AddObject(new SporeCloud(punchDataPackage.fistPos, (Custom.RNV() + punchDataPackage.punchVec) * Mathf.Lerp(0, length, (float)j / (float)total), new Color(0.02f, 0.1f, 0.08f), Mathf.Lerp(length / 4f,length / 2f,Random.value), player.abstractCreature, j % 20, smallInsects));
+                player.room.AddObject(new SporeCloud(punchDataPackage.fistPos, (Custom.RNV() + punchDataPackage.punchVec) * Mathf.Lerp(0, length, (float)j / (float)total), color, Mathf.Lerp(length / 4f,length / 2f,Random.value), player.abstractCreature, j % 20, smallInsects));
             }
 
             SpecificPunchReturnValue specificPunchReturnValue = new SpecificPunchReturnValue
@@ -1258,6 +1274,208 @@ namespace CatPunchPunch
         PunchModule punchModule;
     }
 
+    public class DeerAIModule
+    {
+        public DeerAIModule(PunchModule owner,DeerAI deerAI,int life)
+        {
+            this.deerAI = deerAI;
+            this.life = life;
+            this.owner = owner;
+        }
+        public void Destroy()
+        {
+            owner.deerAIModules.Remove(this);
+            Debug.Log("[CatPunchPunch]DeerAIModule count:" + owner.deerAIModules.Count.ToString());
+        }
+
+        public void Update()
+        {
+            if(life <= 0)
+            {
+                Destroy();
+            }
+
+            try
+            {
+                if (owner != null && owner.player != null && deerAI.deer != null && deerAI.deer.room == owner.player.room)
+                {
+                    deerAI.creature.abstractAI.SetDestination(deerAI.deer.room.GetWorldCoordinate(owner.player.mainBodyChunk.pos + owner.player.input[0].x * 80f * Vector2.right + owner.player.input[0].y * 80f * Vector2.up));
+                    if (Vector2.Distance(deerAI.deer.mainBodyChunk.pos, owner.player.mainBodyChunk.pos) < 100f && !deerAI.lastPlayerInAntlers)
+                    {
+                        deerAI.deer.WeightedPush(0, 1, -deerAI.deer.HeadDir, 2.45f);
+                    }
+                }
+                else
+                {
+                    Destroy();
+                }
+
+                deerAI.focusCreature = null;
+                if (deerAI.deerPileCounter > 100)
+                {
+                    deerAI.stuckTracker.stuckCounter = Math.Min(deerAI.stuckTracker.stuckCounter + 2, deerAI.stuckTracker.maxStuckCounter);
+                    deerAI.kneelCounter -= 5;
+                    deerAI.layDownAndRestCounter -= 5;
+                }
+                deerAI.deerPileCounter = Custom.IntClamp(deerAI.deerPileCounter - 1, 0, 150);
+
+                //base.Update
+                deerAI.timeInRoom++;
+                for (int i = 0; i < deerAI.modules.Count; i++)
+                {
+                    deerAI.modules[i].Update();
+                }
+
+                if (deerAI.creature.pos.x > 10 && deerAI.creature.pos.x < deerAI.deer.room.TileWidth - 11)
+                {
+                    deerAI.timeInThisRoom++;
+                }
+                deerAI.utilityComparer.GetUtilityTracker(deerAI.sporeTracker).weight = 0.9f * Mathf.InverseLerp(100f, 30f, (float)deerAI.deerPileCounter);
+                AIModule aimodule = deerAI.utilityComparer.HighestUtilityModule();
+                deerAI.currentUtility = deerAI.utilityComparer.HighestUtility();
+                if (aimodule != null)
+                {
+                    if (aimodule is RainTracker)
+                    {
+                        deerAI.behavior = DeerAI.Behavior.EscapeRain;
+                    }
+                    else if (aimodule is DeerAI.SporeTracker)
+                    {
+                        deerAI.behavior = DeerAI.Behavior.TrackSpores;
+                    }
+                }
+                if ((deerAI.creature.abstractAI as DeerAbstractAI).damageGoHome)
+                {
+                    deerAI.currentUtility = Mathf.Max(deerAI.currentUtility, 0.8f);
+                    deerAI.behavior = DeerAI.Behavior.EscapeRain;
+                }
+                if (deerAI.currentUtility < 0.1f)
+                {
+                    deerAI.behavior = DeerAI.Behavior.Idle;
+                }
+                if (deerAI.stuckTracker.Utility() > 0.9f && !deerAI.deer.Kneeling && deerAI.deer.resting < 0.5f)
+                {
+                    deerAI.seriouslyStuck++;
+                    if (deerAI.seriouslyStuck > 100)
+                    {
+                        deerAI.behavior = DeerAI.Behavior.GetUnstuck;
+                    }
+                }
+                else
+                {
+                    deerAI.seriouslyStuck = 0;
+                }
+                if (deerAI.deer.Kneeling && deerAI.behavior != DeerAI.Behavior.EscapeRain)
+                {
+                    deerAI.behavior = DeerAI.Behavior.Kneeling;
+                }
+                if (deerAI.goToPuffBall != null && (deerAI.goToPuffBall.deleteMeNextFrame || !deerAI.PuffBallLegal(deerAI.goToPuffBall)))
+                {
+                    deerAI.goToPuffBall = null;
+                }
+                if (deerAI.deer.playersInAntlers.Count > 0)
+                {
+                    deerAI.layDownAndRestCounter = 0;
+                    deerAI.restPos = default(WorldCoordinate?);
+                    if (!deerAI.lastPlayerInAntlers && deerAI.deer.room.TileWidth > 180 && Mathf.Abs(deerAI.inRoomDestination.x - deerAI.deer.room.TileWidth / 2) < deerAI.deer.room.TileWidth / 3)
+                    {
+                        deerAI.inRoomDestination = deerAI.creature.pos;
+                    }
+                }
+                deerAI.lastPlayerInAntlers = (deerAI.deer.playersInAntlers.Count > 0);
+                if (deerAI.deerPileCounter < 50 && (deerAI.stuckTracker.Utility() < 0.5f & deerAI.behavior == DeerAI.Behavior.Idle))
+                {
+                    for (int i = 0; i < deerAI.tracker.CreaturesCount; i++)
+                    {
+                        if (deerAI.tracker.GetRep(i).representedCreature.creatureTemplate.type == CreatureTemplate.Type.Deer && deerAI.tracker.GetRep(i).representedCreature.personality.dominance > deerAI.deer.abstractCreature.personality.dominance && deerAI.tracker.GetRep(i).VisualContact && deerAI.tracker.GetRep(i).representedCreature.realizedCreature != null && (deerAI.tracker.GetRep(i).representedCreature.realizedCreature as Deer).AI.behavior == DeerAI.Behavior.Idle)
+                        {
+                            Vector2 pos = deerAI.tracker.GetRep(i).representedCreature.realizedCreature.mainBodyChunk.pos;
+                            if (Mathf.Abs(deerAI.deer.mainBodyChunk.pos.x + 150f * deerAI.deer.flipDir - pos.x) < 300f && (deerAI.tracker.GetRep(i).representedCreature.realizedCreature as Deer).resting < 0.7f && Custom.DistLess(deerAI.deer.mainBodyChunk.pos + new Vector2(deerAI.deer.flipDir * 700f, 0f), pos, 900f) && (deerAI.tracker.GetRep(i).representedCreature.realizedCreature as Deer).flipDir != deerAI.deer.flipDir)
+                            {
+                                deerAI.kneelCounter = Math.Max(deerAI.kneelCounter, Random.Range(40, 120));
+                                if ((deerAI.tracker.GetRep(i).representedCreature.realizedCreature as Deer).AI.tiredOfClosingEyesCounter < 300)
+                                {
+                                    (deerAI.tracker.GetRep(i).representedCreature.realizedCreature as Deer).AI.closeEyesCounter = 5;
+                                }
+                                (deerAI.tracker.GetRep(i).representedCreature.realizedCreature as Deer).AI.tiredOfClosingEyesCounter += 2;
+                            }
+                        }
+                    }
+                }
+                deerAI.kneelCounter--;
+                deerAI.closeEyesCounter--;
+                deerAI.layDownAndRestCounter--;
+                deerAI.tiredOfClosingEyesCounter = Custom.IntClamp(deerAI.tiredOfClosingEyesCounter - 1, 0, 600);
+                switch (deerAI.behavior)
+                {
+                    case DeerAI.Behavior.Kneeling:
+                        {
+                            WorldCoordinate pos2 = deerAI.creature.pos;
+                            for (int j = deerAI.creature.pos.y; j >= 0; j--)
+                            {
+                                if (!deerAI.deer.room.aimap.TileAccessibleToCreature(pos2.x, j, deerAI.creature.creatureTemplate) || deerAI.deer.room.GetTile(pos2.x, j - 4).wormGrass || deerAI.deer.room.aimap.getAItile(pos2.x, j).smoothedFloorAltitude <= 5)
+                                {
+                                    break;
+                                }
+                                pos2.y = j;
+                            }
+                            deerAI.creature.abstractAI.SetDestination(pos2);
+                            break;
+                        }
+                }
+            }
+            catch
+            {
+                Destroy();
+            }
+
+            life--;
+        }
+
+        public PunchModule owner;
+
+        public WeakReference _deerAI;
+        public DeerAI deerAI
+        {
+            get
+            {
+                if(_deerAI.Target == null)
+                {
+                    Destroy();
+                    return null;
+                }
+                else
+                {
+                    return _deerAI.Target as DeerAI;
+                }
+            }
+            set
+            {
+                _deerAI = new WeakReference(value);
+            }
+        }
+        public int life;
+
+        public static void GetDeerAIModule(PunchModule owner,DeerAI ai,int life)
+        {
+            DeerAIModule aiModule = ai.GetDeerAIModule();
+            if(aiModule != null)
+            {
+                if(aiModule.life < life)
+                {
+                    aiModule.life = life;
+                }
+
+                Debug.Log("[CatPunchPunch]Reset module life for : " + aiModule.deerAI.creature.ToString() + ":" + life.ToString());
+            }
+            else
+            {
+                owner.deerAIModules.Add(new DeerAIModule(owner,ai,life));
+                Debug.Log("[CatPunchPunch]DeerAIModule count:" + owner.deerAIModules.Count.ToString());
+            }
+        }
+    }
+
     public static class ModulePatch
     {
         public static PunchModule GetPunchModule(this Player player)
@@ -1330,6 +1548,29 @@ namespace CatPunchPunch
                         if (CatPunchPunch.PunchModules[i].attachedBeeModules[j].AttachedBee == attachedBee)
                         {
                             return CatPunchPunch.PunchModules[i].attachedBeeModules[j];
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        public static DeerAIModule GetDeerAIModule(this DeerAI deerAI)
+        {
+            for (int i = 0; i < CatPunchPunch.PunchModules.Count(); i++)
+            {
+                if (CatPunchPunch.PunchModules[i] != null && CatPunchPunch.PunchModules[i].deerAIModules.Count > 0)
+                {
+                    for (int j = CatPunchPunch.PunchModules[i].deerAIModules.Count - 1; j >= 0; j--)
+                    {
+                        if(CatPunchPunch.PunchModules[i].deerAIModules[j].deerAI.deer == null || CatPunchPunch.PunchModules[i].deerAIModules[j].deerAI.deer.room != CatPunchPunch.PunchModules[i].player.room)
+                        {
+                            CatPunchPunch.PunchModules[i].deerAIModules[j].Destroy();
+                            continue;
+                        }
+                        if (CatPunchPunch.PunchModules[i].deerAIModules[j].deerAI == deerAI)
+                        {
+                            return CatPunchPunch.PunchModules[i].deerAIModules[j];
                         }
                     }
                 }

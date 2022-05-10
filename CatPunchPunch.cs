@@ -39,6 +39,23 @@ namespace CatPunchPunch
             On.SporePlant.Bee.LookForRandomCreatureToHunt += Bee_LookForRandomCreatureToHunt;
             On.SporePlant.Bee.Attach += Bee_Attach;
             On.SporePlant.AttachedBee.BreakStinger += AttachedBee_BreakStinger;
+
+            //烟雾拳
+            On.DeerAI.Update += DeerAI_Update;
+        }
+
+        private void DeerAI_Update(On.DeerAI.orig_Update orig, DeerAI self)
+        {
+            DeerAIModule deerAIModule = self.GetDeerAIModule();
+            if(deerAIModule != null)
+            {
+                deerAIModule.Update();
+            }
+            else
+            {
+                orig.Invoke(self);
+            }
+
         }
 
         private void Bee_Attach(On.SporePlant.Bee.orig_Attach orig, SporePlant.Bee self, BodyChunk chunk)

@@ -80,7 +80,7 @@ namespace CatPunchPunch
             OpLabel version = new OpLabel(50, 500, "Version:" + PunchConfigInfo.version);
             OpLabel author = new OpLabel(510, 500, "Harvie");
 
-            OpScrollBox opScrollBox = new OpScrollBox(new Vector2(50,50),new Vector2(500,450),875f);
+            OpScrollBox opScrollBox = new OpScrollBox(new Vector2(50,50),new Vector2(500,450),890f);
             
             Tabs[0].AddItems(title, version, author, opScrollBox);
 
@@ -473,7 +473,6 @@ namespace CatPunchPunch
             public override void MakeAndAddElement()
             {
                 values = new string[2] { "Burning", "OneShot" };
-                maxCount = values.Length;
 
                 base.MakeAndAddElement();
                 opListBox = new OpListBox(new Vector2(pos.x + 10 + 60 + 250 + 65f, pos.y + 60f), 50, "CatPunchPunch_" + punchType + "_types", values, 1, false, defaultLayserType);
@@ -521,7 +520,6 @@ namespace CatPunchPunch
                 
             }
 
-            int maxCount;
             string defaultLayserType;
             string[] values;
             OpListBox opListBox;
