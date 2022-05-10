@@ -80,8 +80,8 @@ namespace CatPunchPunch
             OpLabel version = new OpLabel(50, 500, "Version:" + PunchConfigInfo.version);
             OpLabel author = new OpLabel(510, 500, "Harvie");
 
-            OpScrollBox opScrollBox = new OpScrollBox(new Vector2(50,50),new Vector2(500,450),900f);
-
+            OpScrollBox opScrollBox = new OpScrollBox(new Vector2(50,50),new Vector2(500,450),875f);
+            
             Tabs[0].AddItems(title, version, author, opScrollBox);
 
             PunchInfoBox NormalPunch_Box = new PunchInfoBox(opScrollBox, "NormalPunch", new Vector2(0, 0), new Vector2(0.1f, 1.1f), new Vector2(0.2f, 1.2f), new IntVector2(1, 60), 0.1f, 0.2f, 5);
@@ -89,24 +89,30 @@ namespace CatPunchPunch
             PunchInfoBox BombPunch_Box = new PunchInfoBox(opScrollBox, "BombPunch", new Vector2(0, 250), new Vector2(1f, 10f), new Vector2(2f, 20f), new IntVector2(5, 100), 1.5f, 2.5f, 40, "Symbol_StunBomb");
             PunchInfoBox FriendlyPunch_Box = new PunchInfoBox(opScrollBox, "FriendlyPunch", new Vector2(0, 375), new Vector2(-1f, 1f), new Vector2(-1f, 1f), new IntVector2(5, 100), 0.5f, 0.1f, 30, "Symbol_Pearl", "BreakFrame", "Favor", "Heal",false);
             PunchInfoBox_IntRange BeePunch_Box = new PunchInfoBox_IntRange(opScrollBox, "BeePunch", new Vector2(0, 500), new IntVector2(1, 10), new IntVector2(1, 20), new IntVector2(5, 100), 4, 8, 30, "Symbol_SporePlant","BreakFrame","LowBee","HighBee");
+            PunchInfoBox_Laser LaserPunch_Box = new PunchInfoBox_Laser(opScrollBox, "LaserPunch", new Vector2(0, 625), new Vector2(0.1f, 10f), new Vector2(0.2f, 20f), new IntVector2(1, 100), 1.5f, 2.5f, 40, "Burning", "Kill_VultureGrub", "BreakFrame", "LowTotalDMG", "HighTotalDMG");
+            PunchInfoBox_IntRange PuffPunch_Box = new PunchInfoBox_IntRange(opScrollBox, "PuffPunch", new Vector2(0, 750), new IntVector2(10, 100), new IntVector2(20, 200), new IntVector2(1, 100), 30, 60, 60, "Symbol_PuffBall", "BreakFrame", "LowSmoke", "HighSmoke");
 
             FastPunch_Box.MakeAndAddElement();
             NormalPunch_Box.MakeAndAddElement();
             BombPunch_Box.MakeAndAddElement();
             FriendlyPunch_Box.MakeAndAddElement();
             BeePunch_Box.MakeAndAddElement();
+            LaserPunch_Box.MakeAndAddElement();
+            PuffPunch_Box.MakeAndAddElement();
 
             punchInfoBoxes.Add(NormalPunch_Box);
             punchInfoBoxes.Add(FastPunch_Box);
             punchInfoBoxes.Add(BombPunch_Box);
             punchInfoBoxes.Add(FriendlyPunch_Box);
             punchInfoBoxes.Add(BeePunch_Box);
+            punchInfoBoxes.Add(LaserPunch_Box);
+            punchInfoBoxes.Add(PuffPunch_Box);
         }
 
         public override void Update(float dt)
         {
             base.Update(dt);
-            foreach(var box in punchInfoBoxes)
+            foreach (var box in punchInfoBoxes)
             {
                 box.Update(dt);
             }
@@ -197,7 +203,7 @@ namespace CatPunchPunch
                 this.limHigh = limHigh;
             }
 
-            public void MakeAndAddElement()
+            public virtual void MakeAndAddElement()
             {
                 OpRect opRect = new OpRect(pos + Vector2.one * 10f, new Vector2(500f - 40f, 115));
                 OpLabel title = new OpLabel(pos.x + 20f, pos.y + 60f + 35f, punchType,true) { color = Color.white};
@@ -294,34 +300,34 @@ namespace CatPunchPunch
                 }
             }
 
-            OpScrollBox owner;
+            internal OpScrollBox owner;
 
-            List<MenuLabel> menuLabels = new List<MenuLabel>();
-            List<OpSlider> sliders = new List<OpSlider>();
-            List<OpLabel> labels = new List<OpLabel>();
+            internal List<MenuLabel> menuLabels = new List<MenuLabel>();
+            internal List<OpSlider> sliders = new List<OpSlider>();
+            internal List<OpLabel> labels = new List<OpLabel>();
 
-            OpSimpleButton opButton_Reset;
+            internal OpSimpleButton opButton_Reset;
 
-            string punchType;
-            Vector2 pos;
-            Vector2 lowRange;
-            Vector2 highRange;
-            IntVector2 breakRange;
-            float defaultLow;
-            float defaultHigh;
-            int defaultBreak;
-            string FElement;
+            internal string punchType;
+            internal Vector2 pos;
+            internal Vector2 lowRange;
+            internal Vector2 highRange;
+            internal IntVector2 breakRange;
+            internal float defaultLow;
+            internal float defaultHigh;
+            internal int defaultBreak;
+            internal string FElement;
 
-            string lowRangeTitle;
-            string highRangeTitle;
-            string breakTitle;
+            internal string lowRangeTitle;
+            internal string highRangeTitle;
+            internal string breakTitle;
 
-            OpSliderFloat opSlider_lowRange;
-            OpSliderFloat opSlider_highRange;
-            OpSlider opSlider_break;
+            internal OpSliderFloat opSlider_lowRange;
+            internal OpSliderFloat opSlider_highRange;
+            internal OpSlider opSlider_break;
 
-            bool firstUpdate = true;
-            bool limHigh;
+            internal bool firstUpdate = true;
+            internal bool limHigh;
         }
 
         public class PunchInfoBox_IntRange : IPunchInfoBox
@@ -344,16 +350,16 @@ namespace CatPunchPunch
                 this.limHigh = limHigh;
             }
 
-            public void MakeAndAddElement()
+            public virtual void MakeAndAddElement()
             {
                 OpRect opRect = new OpRect(pos + Vector2.one * 10f, new Vector2(500f - 40f, 115));
                 OpLabel title = new OpLabel(pos.x + 20f, pos.y + 60f + 35f, punchType, true) { color = Color.white };
 
                 pos.x += 20f;
 
-                OpLabel title_low = new OpLabel(pos.x + 30f, pos.y + 15f, "LowDamage");
-                OpLabel title_hight = new OpLabel(pos.x + 30f, pos.y + 30f + 15f, "HighDamage");
-                OpLabel title_break = new OpLabel(pos.x + 30f, pos.y + 60f + 15f, "breakFrames");
+                OpLabel title_low = new OpLabel(pos.x + 30f, pos.y + 15f, lowRangeTitle);
+                OpLabel title_hight = new OpLabel(pos.x + 30f, pos.y + 30f + 15f, highRangeTitle);
+                OpLabel title_break = new OpLabel(pos.x + 30f, pos.y + 60f + 15f, breakTitle);
 
                 OpSlider opSlider_lowRange = new OpSlider(pos + Vector2.one * 10 + Vector2.right * 110, "CatPunchPunch_" + punchType + "_lowRangeInt", lowRange, 200f / (float)(lowRange.y - lowRange.x), false, defaultLow);
                 OpLabel opLabel_lowRange = new OpLabel(pos.x + 10 + 60 + 250 + 10f, pos.y + 15f, defaultLow.ToString());
@@ -455,6 +461,71 @@ namespace CatPunchPunch
 
             bool firstUpdate = true;
             bool limHigh;
+        }
+
+        public class PunchInfoBox_Laser : PunchInfoBox
+        {
+            public PunchInfoBox_Laser(OpScrollBox owner, string PunchType, Vector2 pos, Vector2 lowRange, Vector2 highRange, IntVector2 breakRange, float defaultLow, float defaultHigh, int defaultBreak,string defaultLayserType = "Burning", string FElement = "None", string breakTitle = "BreakFrame", string lowRangeTitle = "LowDamage", string highRangeTitle = "HighDamage", bool limHigh = true) : base(owner,PunchType,pos,lowRange,highRange,breakRange,defaultLow,defaultHigh,defaultBreak,FElement,breakTitle,lowRangeTitle,highRangeTitle,limHigh)
+            {
+                this.defaultLayserType = defaultLayserType;
+            }
+
+            public override void MakeAndAddElement()
+            {
+                values = new string[2] { "Burning", "OneShot" };
+                maxCount = values.Length;
+
+                base.MakeAndAddElement();
+                opListBox = new OpListBox(new Vector2(pos.x + 10 + 60 + 250 + 65f, pos.y + 60f), 50, "CatPunchPunch_" + punchType + "_types", values, 1, false, defaultLayserType);
+                opToggleButton = new OpSimpleButton(new Vector2(pos.x + 10 + 60 + 250 + 50f, pos.y + 80f), new Vector2(70, 30), "CatPunchPunch_" + punchType + "_toggleTypes",defaultLayserType);
+                owner.AddItems(opListBox,opToggleButton);
+            }
+
+            public override void Signal(string signal)
+            {
+                string[] parts = signal.Split('_');
+
+                if (parts[0] == "CatPunchPunch")
+                {
+                    if (parts[1] == punchType)
+                    {
+                        if(parts[2] == "reset")
+                        {
+                            opSlider_lowRange.valueFloat = defaultLow;
+                            opSlider_highRange.valueFloat = defaultHigh;
+                            opSlider_break.valueInt = defaultBreak;
+                            opListBox.value = defaultLayserType;
+                        }
+                        else if(parts[2] == "toggleTypes")
+                        {
+                            int current = values.IndexOf(opListBox.value);
+                            current++;
+                            if(current >= values.Length)
+                            {
+                                current = 0;
+                            }
+                            opListBox.value = values[current];
+                        }
+                    }
+                }
+            }
+
+            public override void Update(float dt)
+            {
+                if (firstUpdate)
+                {
+                    opListBox.Hide();
+                }
+                opToggleButton.text = opListBox.value;
+                base.Update(dt);
+                
+            }
+
+            int maxCount;
+            string defaultLayserType;
+            string[] values;
+            OpListBox opListBox;
+            OpSimpleButton opToggleButton;
         }
 
         public interface IPunchInfoBox

@@ -9,7 +9,7 @@ using OptionalUI;
 
 namespace CatPunchPunch
 {
-    [BepInPlugin("Harvie.CatPunchPunch", "CatPunchPunch", "1.1.1")]
+    [BepInPlugin("Harvie.CatPunchPunch", "CatPunchPunch", "1.1.2")]
     public class CatPunchPunch : BaseUnityPlugin
     {
         public static PunchModule[] PunchModules = new PunchModule[1];

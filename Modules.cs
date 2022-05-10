@@ -59,6 +59,8 @@ namespace CatPunchPunch
 
             try
             {
+                PunchMode punchMode = mode;
+
                 //找到最近的生物(在一定范围内)
                 if (player.room.physicalObjects[player.collisionLayer].Count > 0)
                 {
@@ -71,6 +73,7 @@ namespace CatPunchPunch
                     {
                         if (physicObj != player && physicObj is Creature)
                         {
+                            bool doGetLaser = false;
                             foreach (var chunck in physicObj.bodyChunks)//检查身体区块
                             {
                                 float dist = Custom.DistNoSqrt(chunck.pos, player.mainBodyChunk.pos);
@@ -79,10 +82,22 @@ namespace CatPunchPunch
                                     maxDist = dist;
                                     closestChunck = chunck;
                                 }
-                                if(dist < laserMaxDist && dist < maxColliderDistance * 256 && !(physicObj as Creature).dead)
+                                if(dist < laserMaxDist && dist < maxColliderDistance * 1024 && !(physicObj as Creature).dead && punchMode == PunchMode.LaserPunch)
                                 {
-                                    laserMaxDist = dist;
-                                    closestLaserChunk = chunck;
+                                    Vector2 corner = Custom.RectCollision(player.mainBodyChunk.pos + (chunck.pos - player.mainBodyChunk.pos).normalized * 100000f,player.mainBodyChunk.pos, player.room.RoomRect.Grow(200f)).GetCorner(FloatRect.CornerLabel.D);
+                                    IntVector2? intVector = SharedPhysics.RayTraceTilesForTerrainReturnFirstSolid(player.room, player.mainBodyChunk.pos, corner);
+
+
+                                    if (intVector != null)
+                                    {
+                                        corner = Custom.RectCollision(corner, player.mainBodyChunk.pos, player.room.TileRect(intVector.Value)).GetCorner(FloatRect.CornerLabel.D);
+                                    }
+
+                                    if((corner - player.mainBodyChunk.pos).sqrMagnitude > (chunck.pos - player.mainBodyChunk.pos).sqrMagnitude)
+                                    {
+                                        laserMaxDist = dist;
+                                        closestLaserChunk = chunck;
+                                    }
                                 }
                             }
                         }
@@ -223,6 +238,9 @@ namespace CatPunchPunch
                     break;
                 case PunchMode.BeePunch:
                     specificPunchReturnValue = BeePunch(punchDataPackage);
+                    break;
+                case PunchMode.PuffPunch:
+                    specificPunchReturnValue = PuffPunch(punchDataPackage);
                     break;
                 case PunchMode.TheHandPunch:
                     specificPunchReturnValue = NormalPunch(punchDataPackage);
@@ -404,11 +422,11 @@ namespace CatPunchPunch
                 hand = playerGraphics.hands[attackHand];
             }
 
-            player.room.AddObject(new VE_Laser(punchDataPackage, hand, player)); 
+            player.room.AddObject(new VE_Laser(punchDataPackage, hand, player,PunchConfigInfo.punchOtherSettings["LaserPunch"])); 
 
             SpecificPunchReturnValue specificPunchReturnValue;
-            specificPunchReturnValue.breakFrame = 40;
-            specificPunchReturnValue.velMulti = 1f;
+            specificPunchReturnValue.breakFrame = PunchConfigInfo.GetBreak("LaserPunch");
+            specificPunchReturnValue.velMulti = 2f;
 
             return specificPunchReturnValue;
         }
@@ -534,6 +552,34 @@ namespace CatPunchPunch
             return specificPunchReturnValue;
         }
 
+        public SpecificPunchReturnValue PuffPunch(PunchDataPackage punchDataPackage)
+        {
+            InsectCoordinator smallInsects = null;
+            for (int i = 0; i < player.room.updateList.Count; i++)
+            {
+                if (player.room.updateList[i] is InsectCoordinator)
+                {
+                    smallInsects = (player.room.updateList[i] as InsectCoordinator);
+                    break;
+                }
+            }
+
+            int total = PunchConfigInfo.GetInt("PuffPunch");
+            float length = total / 20f;
+
+            for (int j = 0; j < total; j++)
+            {
+                player.room.AddObject(new SporeCloud(punchDataPackage.fistPos, (Custom.RNV() + punchDataPackage.punchVec) * Mathf.Lerp(0, length, (float)j / (float)total), new Color(0.02f, 0.1f, 0.08f), Mathf.Lerp(length / 4f,length / 2f,Random.value), player.abstractCreature, j % 20, smallInsects));
+            }
+
+            SpecificPunchReturnValue specificPunchReturnValue = new SpecificPunchReturnValue
+            {
+                breakFrame = PunchConfigInfo.GetBreak("PuffPunch"),
+                velMulti = 1
+            };
+            return specificPunchReturnValue;
+        }
+
         #region useless
         //public static List<UpdatableAndDeletable> GetUpdatableAndDeletables(int index)
         //{
@@ -635,6 +681,10 @@ namespace CatPunchPunch
                 {
                     return PunchMode.BeePunch;
                 }
+                if(player.objectInStomach.type == AbstractPhysicalObject.AbstractObjectType.PuffBall)
+                {
+                    return PunchMode.PuffPunch;
+                }
                 if(player.objectInStomach.type == AbstractPhysicalObject.AbstractObjectType.Creature)
                 {
                     AbstractCreature creature = player.objectInStomach as AbstractCreature;
@@ -665,6 +715,7 @@ namespace CatPunchPunch
             FriendlyPunch,
             FriendlyPunch_highLevel,
             BeePunch,
+            PuffPunch,
             TheHandPunch,
             TheWorldPunch,
         }

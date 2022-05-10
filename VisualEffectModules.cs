@@ -13,11 +13,23 @@ namespace CatPunchPunch
         PunchModule.PunchDataPackage punchDataPackage;
         SlugcatHand hand;
         Player player;
-        public VE_Laser(PunchModule.PunchDataPackage punchDataPackage, SlugcatHand hand,Player player)
+
+        //LayserType = "Burning" or "OneShot"
+        public VE_Laser(PunchModule.PunchDataPackage punchDataPackage, SlugcatHand hand,Player player,string LaserType = "OneShot")
         {
             this.punchDataPackage = punchDataPackage;
             this.hand = hand;
             this.player = player;
+
+            totalDamage = PunchConfigInfo.GetDamage("LaserPunch");
+            if(LaserType == "OneShot")
+            {
+                totalDamage /= 2;
+            }
+
+            frameDagame = totalDamage / 40f;
+
+            this.LaserType = LaserType;
         }
 
         public override void InitiateSprites(RoomCamera.SpriteLeaser sLeaser, RoomCamera rCam)
@@ -45,6 +57,15 @@ namespace CatPunchPunch
 
             AddToContainer(sLeaser, rCam, null);
             base.InitiateSprites(sLeaser, rCam);
+            if(LaserType == "Burning")
+            {
+                player.room.PlaySound(SoundID.Flare_Bomb_Burn, player.mainBodyChunk);
+            }
+            else if(LaserType == "OneShot")
+            {
+                player.room.PlaySound(SoundID.Moon_Wake_Up_Green_Swarmer_Flash, player.mainBodyChunk);
+            }
+            
         }
 
         public override void AddToContainer(RoomCamera.SpriteLeaser sLeaser, RoomCamera rCam, FContainer newContatiner)
@@ -69,11 +90,12 @@ namespace CatPunchPunch
 
             Vector2 fromPos = hand.pos;
             Vector2 dir = punchDataPackage.punchLaserVec.normalized;
+            float t = Mathf.Lerp(0, 1, life / 40f);
 
-            (sLeaser.sprites[0] as CustomFSprite).verticeColors[0] = Custom.RGB2RGBA(currentColor, currentColor.a);
-            (sLeaser.sprites[0] as CustomFSprite).verticeColors[1] = Custom.RGB2RGBA(currentColor, currentColor.a);
-            (sLeaser.sprites[0] as CustomFSprite).verticeColors[2] = Custom.RGB2RGBA(currentColor, currentColor.a);
-            (sLeaser.sprites[0] as CustomFSprite).verticeColors[3] = Custom.RGB2RGBA(currentColor, currentColor.a);
+            (sLeaser.sprites[0] as CustomFSprite).verticeColors[0] = Custom.RGB2RGBA(currentColor, t);
+            (sLeaser.sprites[0] as CustomFSprite).verticeColors[1] = Custom.RGB2RGBA(currentColor, t);
+            (sLeaser.sprites[0] as CustomFSprite).verticeColors[2] = Custom.RGB2RGBA(currentColor, t);
+            (sLeaser.sprites[0] as CustomFSprite).verticeColors[3] = Custom.RGB2RGBA(currentColor, t);
 
 
             Vector2 corner = Custom.RectCollision(fromPos, fromPos + dir * 100000f, rCam.room.RoomRect.Grow(200f)).GetCorner(FloatRect.CornerLabel.D);
@@ -86,112 +108,159 @@ namespace CatPunchPunch
             }
 
             //激光检测
-            PhysicalObject owner = null;
-            BodyChunk closestLaserChunck = null;
-            float maxLaserDist = float.MaxValue;
-            try
+            if (LaserType == "OneShot" && life == 40)
             {
-                foreach (var physicObj in player.room.physicalObjects[player.collisionLayer])
+                try
                 {
-                    if ((physicObj != player) && physicObj is Creature)
+                    float terrainDist = (corner - hand.pos).magnitude;
+                    foreach (var physicObj in player.room.physicalObjects[player.collisionLayer])
                     {
-                        if (physicObj.bodyChunks.Length > 0)
+                        if ((physicObj != player) && physicObj is Creature)
                         {
-                            foreach (var chunck in physicObj.bodyChunks)//检查身体区块
+                            if (physicObj.bodyChunks.Length > 0)
                             {
-                                float lineDist = Mathf.Abs(Custom.DistanceToLine(chunck.pos, hand.pos, punchDataPackage.punchLaserVec + hand.pos));
-                                float dist = Custom.Dist(chunck.pos, hand.pos);
-
-                                if (lineDist < chunck.rad && dist < maxLaserDist)
+                                bool hurt = false;
+                                BodyChunk bodyChunk = null;
+                                foreach (var chunck in physicObj.bodyChunks)//检查身体区块
                                 {
-                                    Vector2 directionVec1 = chunck.pos - hand.pos;
-                                    Vector2 directionVec2 = punchDataPackage.punchLaserVec;
+                                    float lineDist = Mathf.Abs(Custom.DistanceToLine(chunck.pos, hand.pos, punchDataPackage.punchLaserVec + hand.pos));
+                                    float dist = Custom.Dist(chunck.pos, hand.pos);
 
-                                    if (Vector2.Dot(directionVec1, directionVec2) > 0)
+                                    if (lineDist < chunck.rad && terrainDist > dist)
                                     {
-                                        closestLaserChunck = chunck;
-                                        owner = physicObj;
-                                        maxLaserDist = dist;
+                                        Vector2 directionVec1 = chunck.pos - hand.pos;
+                                        Vector2 directionVec2 = punchDataPackage.punchLaserVec;
+
+                                        if (Vector2.Dot(directionVec1, directionVec2) > 0)
+                                        {
+                                            hurt = true;
+                                            bodyChunk = chunck;
+                                        }
+                                    }
+                                }
+                                if (hurt)
+                                {
+                                    (physicObj as Creature).SetKillTag(player.abstractCreature);
+                                    (physicObj as Creature).Violence(bodyChunk, punchDataPackage.punchLaserVec, bodyChunk, null, Creature.DamageType.Explosion, totalDamage, 19f);
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    Debug.LogException(new NullReferenceException("At block1-0"));
+                    Debug.LogException(e);
+                }
+            }
+            if (LaserType == "Burning")
+            {
+                PhysicalObject owner = null;
+                BodyChunk closestLaserChunck = null;
+                float maxLaserDist = float.MaxValue;
+                try
+                {
+                    foreach (var physicObj in player.room.physicalObjects[player.collisionLayer])
+                    {
+                        if ((physicObj != player) && physicObj is Creature)
+                        {
+                            if (physicObj.bodyChunks.Length > 0)
+                            {
+                                foreach (var chunck in physicObj.bodyChunks)//检查身体区块
+                                {
+                                    float lineDist = Mathf.Abs(Custom.DistanceToLine(chunck.pos, hand.pos, punchDataPackage.punchLaserVec + hand.pos));
+                                    float dist = Custom.Dist(chunck.pos, hand.pos);
+
+                                    if (lineDist < chunck.rad && dist < maxLaserDist)
+                                    {
+                                        Vector2 directionVec1 = chunck.pos - hand.pos;
+                                        Vector2 directionVec2 = punchDataPackage.punchLaserVec;
+
+                                        if (Vector2.Dot(directionVec1, directionVec2) > 0)
+                                        {
+                                            closestLaserChunck = chunck;
+                                            owner = physicObj;
+                                            maxLaserDist = dist;
+                                        }
                                     }
                                 }
                             }
                         }
                     }
                 }
-            }
-            catch(Exception e)
-            {
-                Debug.LogException(new NullReferenceException("At block1-1"));
-                Debug.LogException(e);
-                goto JumpOver;
-            }
-
-            try
-            {
-                if (closestLaserChunck != null)
+                catch (Exception e)
                 {
-                    if ((corner - hand.pos).magnitude >= maxLaserDist)
+                    Debug.LogException(new NullReferenceException("At block1-1"));
+                    Debug.LogException(e);
+                    goto JumpOver;
+                }
+
+                try
+                {
+                    if (closestLaserChunck != null)
                     {
-                        corner = Custom.ClosestPointOnLine(hand.pos, punchDataPackage.punchLaserVec + hand.pos, closestLaserChunck.pos); ;
-
-                        dir = (punchDataPackage.punchLaserVec).normalized;
-
-                        if (owner is Creature && currentColor.a > 0.3f)
+                        if ((corner - hand.pos).magnitude >= maxLaserDist)
                         {
-                            if(owner is Player)
+                            corner = Custom.ClosestPointOnLine(hand.pos, punchDataPackage.punchLaserVec + hand.pos, closestLaserChunck.pos); ;
+
+                            dir = (punchDataPackage.punchLaserVec).normalized;
+
+                            if (owner is Creature && currentColor.a > 0.3f)
                             {
-                                (owner as Player).SetKillTag(player.abstractCreature);
-                                (owner as Player).Die();
-                            }
-                            else
-                            {
-                                (owner as Creature).Violence(closestLaserChunck, new Vector2?(punchDataPackage.punchVec.normalized * 1.2f), closestLaserChunck, null, Creature.DamageType.Explosion, 0.02f * currentColor.a * Mathf.Pow(owner.TotalMass,0.7f), 19f);
-                                (owner as Creature).SetKillTag(player.abstractCreature);
+                                if (owner is Player)
+                                {
+                                    (owner as Player).SetKillTag(player.abstractCreature);
+                                    (owner as Player).Die();
+                                }
+                                else
+                                {
+                                    (owner as Creature).Violence(closestLaserChunck, null, closestLaserChunck, null, Creature.DamageType.Explosion, frameDagame, 19f);
+                                    (owner as Creature).SetKillTag(player.abstractCreature);
+                                }
                             }
                         }
                     }
                 }
+                catch (Exception e)
+                {
+                    Debug.LogException(new NullReferenceException("At block1-2"));
+                    Debug.LogException(e);
+                    goto JumpOver;
+                }
             }
-            catch(Exception e)
-            {
-                Debug.LogException(new NullReferenceException("At block1-2"));
-                Debug.LogException(e);
-                goto JumpOver;
-            }
+            
 
-            (sLeaser.sprites[0] as CustomFSprite).MoveVertice(0, fromPos - dir * 4f + Custom.PerpendicularVector(dir) * 0.5f - camPos);
-            (sLeaser.sprites[0] as CustomFSprite).MoveVertice(1, fromPos - dir * 4f - Custom.PerpendicularVector(dir) * 0.5f - camPos);
-            (sLeaser.sprites[0] as CustomFSprite).MoveVertice(2, corner - Custom.PerpendicularVector(dir) * 0.5f - camPos);
-            (sLeaser.sprites[0] as CustomFSprite).MoveVertice(3, corner + Custom.PerpendicularVector(dir) * 0.5f - camPos);
+            (sLeaser.sprites[0] as CustomFSprite).MoveVertice(0, fromPos - dir * 4f + Custom.PerpendicularVector(dir) * 0.35f * totalDamage - camPos);
+            (sLeaser.sprites[0] as CustomFSprite).MoveVertice(1, fromPos - dir * 4f - Custom.PerpendicularVector(dir) * 0.35f * totalDamage - camPos);
+            (sLeaser.sprites[0] as CustomFSprite).MoveVertice(2, corner - Custom.PerpendicularVector(dir) * 0.35f * totalDamage - camPos);
+            (sLeaser.sprites[0] as CustomFSprite).MoveVertice(3, corner + Custom.PerpendicularVector(dir) * 0.35f * totalDamage - camPos);
 
             sLeaser.sprites[1].x = fromPos.x - camPos.x;
             sLeaser.sprites[1].y = fromPos.y - camPos.y;
             sLeaser.sprites[1].color = currentColor;
-            sLeaser.sprites[1].alpha = Mathf.Pow(currentColor.a, 0.5f);
-            sLeaser.sprites[1].scale = Mathf.Pow(currentColor.a, 1.2f) * 1.5f;
+            sLeaser.sprites[1].alpha = Mathf.Pow(t, 0.5f);
+            sLeaser.sprites[1].scale = Mathf.Pow(t, 1.2f) * 1.5f * totalDamage / 3;
 
             sLeaser.sprites[2].x = corner.x - camPos.x;
             sLeaser.sprites[2].y = corner.y - camPos.y;
             sLeaser.sprites[2].color = currentColor;
-            sLeaser.sprites[2].alpha = Mathf.Pow(currentColor.a, 0.5f);
-            sLeaser.sprites[2].scale = Mathf.Pow(currentColor.a, 1.2f) * 1.5f;
+            sLeaser.sprites[2].alpha = Mathf.Pow(t, 0.5f);
+            sLeaser.sprites[2].scale = Mathf.Pow(t, 1.2f) * 1.5f * totalDamage / 3;
 
             light.setPos = new Vector2?(hand.pos);
-            light.setAlpha = new float?(Mathf.Pow(currentColor.a, 0.5f));
-            light.setRad = new float?(Mathf.Lerp(50f, 120f, Mathf.Pow(currentColor.a, 1.2f)));
+            light.setAlpha = new float?(Mathf.Pow(t, 0.5f));
+            light.setRad = new float?(Mathf.Lerp(50f, 120f, Mathf.Pow(t, 1.2f))) * totalDamage / 6;
 
             light_E.setPos = new Vector2?(corner);
-            light_E.setAlpha = new float?(Mathf.Pow(currentColor.a, 0.5f));
-            light_E.setRad = new float?(Mathf.Lerp(50f, 120f, Mathf.Pow(currentColor.a, 1.2f)));
+            light_E.setAlpha = new float?(Mathf.Pow(t, 0.5f));
+            light_E.setRad = new float?(Mathf.Lerp(50f, 120f, Mathf.Pow(t, 1.2f))) * totalDamage / 6;
 
-            JumpOver:
-
-            currentColor = Color.Lerp(lastColor, new Color(0, 0, 0, 0),0.02f);
-            lastColor = currentColor;
+        JumpOver:
 
             base.DrawSprites(sLeaser, rCam, timeStacker, camPos);
 
-            if (currentColor.a < 0.1f)
+            life--;
+            if (life == 0)
             {
                 Destroy();
             }
@@ -226,6 +295,12 @@ namespace CatPunchPunch
 
         public Color currentColor = Color.red;
         public Color lastColor = Color.red;
+
+        int life = 40;
+        float totalDamage;
+        float frameDagame;
+
+        string LaserType;
     }
 
     public class VE_FriendlyPunch : CosmeticSprite
